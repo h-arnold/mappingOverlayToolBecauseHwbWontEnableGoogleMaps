@@ -12,7 +12,7 @@ import { dispatchNotification } from './notifications.js';
 /** @type {L.Map} */
 export let mapInstance;
 
-/** @type {Array<import('./types').LayerMeta>} */
+/** @type {import('./types').LayerMeta[]} */
 export const layersRegistry = [];
 
 /* ------------------------------------------------------------------ */
@@ -26,7 +26,7 @@ export function initializeMainMap() {
         zoomControl: false,
     });
 
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
         attribution:
             '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>',
         subdomains: 'abcd',
@@ -49,7 +49,13 @@ export function initializeMainMap() {
  * @param {L.Layer}           nativeLayer
  */
 export function registerLayer(name, type, color, coords, nativeLayer) {
-    const id = 'overlay_layer_' + Date.now();
+    // Defence-in-depth: guard against duplicate names
+    if (layersRegistry.some((l) => l.name.toLowerCase() === name.toLowerCase())) {
+        dispatchNotification('Duplicate Layer Name', `A layer named "${name}" already exists.`, 'error');
+        return null;
+    }
+
+    const id = 'overlay_layer_' + crypto.randomUUID();
 
     const meta = {
         id,
@@ -95,7 +101,21 @@ export function toggleVisibilityState(id) {
         mapInstance.removeLayer(layer.nativeLayer);
         dispatchNotification('Layer Disabled', `Hidden display of "${layer.name}"`, 'info');
     }
-    renderActiveLayersUI();
+
+    // Update the toggle icon directly instead of re-rendering the whole list
+    const btn = document.querySelector(`.toggle-vis[data-id="${id}"]`);
+    if (btn) {
+        const icon = btn.querySelector('i');
+        if (icon) {
+            icon.setAttribute('data-lucide', layer.visible ? 'eye' : 'eye-off');
+            icon.className = `w-4 h-4 ${layer.visible ? 'text-indigo-500' : 'text-stone-400'}`;
+            // Rebuild the single icon without touching the rest of the DOM
+            const parent = icon.parentNode;
+            const clone = icon.cloneNode();
+            parent.replaceChild(clone, icon);
+            createIcons({ icons });
+        }
+    }
 }
 
 /* ------------------------------------------------------------------ */
@@ -103,12 +123,11 @@ export function toggleVisibilityState(id) {
 /* ------------------------------------------------------------------ */
 
 export function dismissLayerFromRegistry(id) {
-    const idx = layersRegistry.findIndex((l) => l.id === id);
-    if (idx === -1) return;
+    const layer = findLayer(id);
+    if (!layer) return;
 
-    const layer = layersRegistry[idx];
     mapInstance.removeLayer(layer.nativeLayer);
-    layersRegistry.splice(idx, 1);
+    layersRegistry.splice(layersRegistry.indexOf(layer), 1);
 
     renderActiveLayersUI();
     dispatchNotification('Layer Removed', `Removed dataset "${layer.name}" completely from session`, 'info');
@@ -155,7 +174,6 @@ export function adjustLayerHexColor(id, valueHex) {
     } else {
         layer.nativeLayer.setOptions({ gradient: constructHeatmapGradient(valueHex) });
     }
-    renderActiveLayersUI();
 }
 
 export function adjustLayerOpacity(id, numericValue) {
@@ -214,7 +232,7 @@ export function renderActiveLayersUI() {
     for (const layer of layersRegistry) {
         const card = document.createElement('div');
         card.className =
-            'bg-slate-950 border border-slate-800/80 hover:border-slate-700 rounded-xl p-4 space-y-3.5 transition duration-200 relative group';
+            'bg-white border border-stone-200/80 hover:border-stone-300 rounded-xl p-4 space-y-3.5 transition duration-200 relative group';
 
         const isPin = layer.type === 'pins';
         const escapedName = layer.name.replace(/"/g, '&quot;');
@@ -222,55 +240,55 @@ export function renderActiveLayersUI() {
         card.innerHTML = `
             <div class="flex items-start justify-between gap-2">
                 <div class="flex items-center gap-3 flex-1 min-w-0">
-                    <button class="p-2 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-400 hover:text-white transition shadow-sm shrink-0 toggle-vis" data-id="${layer.id}" title="Toggle Display">
-                        <i data-lucide="${layer.visible ? 'eye' : 'eye-off'}" class="w-4 h-4 ${layer.visible ? 'text-indigo-400' : 'text-slate-500'}"></i>
+                    <button class="p-2 rounded-lg bg-stone-100 hover:bg-stone-200 border border-stone-200 text-stone-500 hover:text-stone-800 transition shadow-sm shrink-0 toggle-vis" data-id="${layer.id}" title="Toggle Display">
+                        <i data-lucide="${layer.visible ? 'eye' : 'eye-off'}" class="w-4 h-4 ${layer.visible ? 'text-indigo-500' : 'text-stone-400'}"></i>
                     </button>
                     <div class="flex-1 min-w-0">
                         <div class="flex items-center gap-1.5 group/title">
                             <input type="text"
                                    value="${escapedName}"
-                                   class="rename-input bg-transparent border border-transparent hover:border-slate-800 hover:bg-slate-900/60 focus:bg-slate-900 focus:border-indigo-500/50 rounded px-1.5 py-0.5 -ml-1.5 text-sm font-semibold text-slate-200 transition focus:outline-none w-full truncate cursor-pointer focus:cursor-text"
+                                   class="rename-input bg-transparent border border-transparent hover:border-stone-300 hover:bg-stone-100/80 focus:bg-stone-100 focus:border-indigo-500/50 rounded px-1.5 py-0.5 -ml-1.5 text-sm font-semibold text-stone-700 transition focus:outline-none w-full truncate cursor-pointer focus:cursor-text"
                                    data-id="${layer.id}"
                                    title="Click to rename layer">
                         </div>
-                        <span class="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full ${isPin ? 'bg-indigo-500/10 text-indigo-400 border border-indigo-500/20' : 'bg-rose-500/10 text-rose-400 border border-rose-500/20'} mt-1 inline-block">
+                        <span class="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full ${isPin ? 'bg-indigo-100 text-indigo-600 border border-indigo-200' : 'bg-rose-100 text-rose-600 border border-rose-200'} mt-1 inline-block">
                             ${isPin ? 'Pin Overlay' : 'Heatmap Layer'} &bull; ${layer.coords.length} points
                         </span>
                     </div>
                 </div>
-                <button class="p-1.5 rounded-lg text-slate-500 hover:text-rose-400 hover:bg-rose-500/10 transition shrink-0 delete-layer" data-id="${layer.id}" title="Dismiss Layer">
+                <button class="p-1.5 rounded-lg text-stone-400 hover:text-rose-500 hover:bg-rose-100 transition shrink-0 delete-layer" data-id="${layer.id}" title="Dismiss Layer">
                     <i data-lucide="trash" class="w-4 h-4"></i>
                 </button>
             </div>
 
-            <div class="pt-3.5 border-t border-slate-900 grid grid-cols-2 gap-3">
+            <div class="pt-3.5 border-t border-stone-100 grid grid-cols-2 gap-3">
                 <div>
-                    <label class="block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">Color Shade</label>
-                    <div class="flex items-center gap-2 bg-slate-900 rounded-lg px-2.5 py-1.5 border border-slate-800">
+                    <label class="block text-[10px] font-bold uppercase tracking-wider text-stone-400 mb-1">Color Shade</label>
+                    <div class="flex items-center gap-2 bg-stone-100 rounded-lg px-2.5 py-1.5 border border-stone-200">
                         <input type="color" value="${layer.color}" class="color-picker w-6 h-5 cursor-pointer border-0 rounded bg-transparent" data-id="${layer.id}">
-                        <span class="text-xs font-mono text-slate-400 uppercase">${layer.color}</span>
+                        <span class="color-hex-label text-xs font-mono text-stone-500 uppercase">${layer.color}</span>
                     </div>
                 </div>
                 <div>
-                    <label class="block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">Layer Opacity</label>
-                    <div class="flex items-center gap-2 h-8 px-2 bg-slate-900 rounded-lg border border-slate-800">
-                        <input type="range" min="0" max="1" step="0.1" value="${layer.opacity}" class="opacity-slider w-full accent-indigo-500 bg-slate-950 h-1 rounded-lg cursor-pointer" data-id="${layer.id}">
+                    <label class="opacity-label block text-[10px] font-bold uppercase tracking-wider text-stone-400 mb-1" data-id="${layer.id}">Layer Opacity (${Math.round(layer.opacity * 100)}%)</label>
+                    <div class="flex items-center gap-2 h-8 px-2 bg-stone-100 rounded-lg border border-stone-200">
+                        <input type="range" min="0" max="1" step="0.1" value="${layer.opacity}" class="opacity-slider w-full accent-indigo-500 bg-stone-200 h-1 rounded-lg cursor-pointer" data-id="${layer.id}">
                     </div>
                 </div>
             </div>
 
             ${!isPin ? `
-            <div class="pt-2.5 border-t border-slate-900/60 grid grid-cols-2 gap-3">
+            <div class="pt-2.5 border-t border-stone-100/60 grid grid-cols-2 gap-3">
                 <div>
-                    <label class="block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">Blur Radius (${layer.radius}px)</label>
-                    <div class="flex items-center gap-2 h-8 px-2 bg-slate-900 rounded-lg border border-slate-800">
-                        <input type="range" min="5" max="50" step="1" value="${layer.radius}" class="radius-slider w-full accent-indigo-500 bg-slate-950 h-1 rounded-lg cursor-pointer" data-id="${layer.id}">
+                    <label class="block text-[10px] font-bold uppercase tracking-wider text-stone-400 mb-1">Blur Radius (${layer.radius}px)</label>
+                    <div class="flex items-center gap-2 h-8 px-2 bg-stone-100 rounded-lg border border-stone-200">
+                        <input type="range" min="5" max="50" step="1" value="${layer.radius}" class="radius-slider w-full accent-indigo-500 bg-stone-200 h-1 rounded-lg cursor-pointer" data-id="${layer.id}">
                     </div>
                 </div>
                 <div>
-                    <label class="block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">Intensity Blur (${layer.blur}px)</label>
-                    <div class="flex items-center gap-2 h-8 px-2 bg-slate-900 rounded-lg border border-slate-800">
-                        <input type="range" min="2" max="40" step="1" value="${layer.blur}" class="blur-slider w-full accent-indigo-500 bg-slate-950 h-1 rounded-lg cursor-pointer" data-id="${layer.id}">
+                    <label class="block text-[10px] font-bold uppercase tracking-wider text-stone-400 mb-1">Intensity Blur (${layer.blur}px)</label>
+                    <div class="flex items-center gap-2 h-8 px-2 bg-stone-100 rounded-lg border border-stone-200">
+                        <input type="range" min="2" max="40" step="1" value="${layer.blur}" class="blur-slider w-full accent-indigo-500 bg-stone-200 h-1 rounded-lg cursor-pointer" data-id="${layer.id}">
                     </div>
                 </div>
             </div>
@@ -293,10 +311,20 @@ export function renderActiveLayersUI() {
         inp.addEventListener('change', () => renameLayer(inp.dataset.id, inp.value));
     });
     container.querySelectorAll('.color-picker').forEach((inp) => {
-        inp.addEventListener('input', () => adjustLayerHexColor(inp.dataset.id, inp.value));
+        inp.addEventListener('input', () => {
+            adjustLayerHexColor(inp.dataset.id, inp.value);
+            // Update the hex label directly without a full re-render
+            const label = inp.parentElement?.querySelector('.color-hex-label');
+            if (label) label.textContent = inp.value.toUpperCase();
+        });
     });
     container.querySelectorAll('.opacity-slider').forEach((inp) => {
-        inp.addEventListener('input', () => adjustLayerOpacity(inp.dataset.id, inp.value));
+        inp.addEventListener('input', () => {
+            adjustLayerOpacity(inp.dataset.id, inp.value);
+            // Update the percentage label directly
+            const label = document.querySelector(`.opacity-label[data-id="${inp.dataset.id}"]`);
+            if (label) label.textContent = `Layer Opacity (${Math.round(parseFloat(inp.value) * 100)}%)`;
+        });
     });
     container.querySelectorAll('.radius-slider').forEach((inp) => {
         inp.addEventListener('input', () => adjustHeatmapRadius(inp.dataset.id, inp.value));

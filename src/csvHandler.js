@@ -1,5 +1,6 @@
 import Papa from 'papaparse';
 import L from 'leaflet';
+import 'leaflet.heat';
 import { layersRegistry, registerLayer, renderActiveLayersUI } from './map.js';
 import { constructHeatmapGradient, randomHexColor } from './utils.js';
 import { dispatchNotification } from './notifications.js';
@@ -157,7 +158,7 @@ export function setWizardType(type) {
     const activeClass =
         'flex-1 py-1 rounded text-xs font-semibold text-center transition-all bg-indigo-600 text-white shadow-sm';
     const inactiveClass =
-        'flex-1 py-1 rounded text-xs font-semibold text-center transition-all text-slate-400 hover:text-slate-200';
+        'flex-1 py-1 rounded text-xs font-semibold text-center transition-all text-stone-500 hover:text-stone-700';
 
     btnPins.className = type === 'pins' ? activeClass : inactiveClass;
     btnHeat.className = type === 'heat' ? activeClass : inactiveClass;
@@ -240,16 +241,16 @@ export function compileAndAddLayer() {
                 renderer: canvasRenderer,
                 radius: 6,
                 fillColor: colorHex,
-                color: '#020617',
+                color: '#44403c',
                 weight: 1.5,
                 opacity: 0.9,
                 fillOpacity: 0.85,
             });
 
             let html = `<div class="p-2 space-y-1 max-h-[180px] overflow-y-auto font-sans text-xs">`;
-            html += `<div class="font-bold border-b border-slate-700 pb-1.5 mb-2 flex items-center gap-1.5 text-slate-300"><i data-lucide="info" class="w-3.5 h-3.5 text-indigo-400"></i> Entity Attributes</div>`;
+            html += `<div class="font-bold border-b border-stone-200 pb-1.5 mb-2 flex items-center gap-1.5 text-stone-600"><i data-lucide="info" class="w-3.5 h-3.5 text-indigo-500"></i> Entity Attributes</div>`;
             for (const [k, v] of Object.entries(pt.attributes)) {
-                html += `<div class="flex flex-col gap-0.5"><span class="text-slate-500 font-semibold uppercase text-[9px] tracking-wider">${k}</span><span class="text-slate-200 font-mono select-all">${v}</span></div>`;
+                html += `<div class="flex flex-col gap-0.5"><span class="text-stone-400 font-semibold uppercase text-[9px] tracking-wider">${k}</span><span class="text-stone-700 font-mono select-all">${v}</span></div>`;
             }
             html += `</div>`;
 
@@ -267,7 +268,9 @@ export function compileAndAddLayer() {
         });
     }
 
-    registerLayer(name, visualStyle, colorHex, mappedPoints, nativeLayer);
+    const registered = registerLayer(name, visualStyle, colorHex, mappedPoints, nativeLayer);
+    if (!registered) return; // duplicate was caught by registerLayer's own guard
+
     cancelWizard();
     renderActiveLayersUI();
     dispatchNotification('Overlay Plotted', `"${name}" loaded (${mappedPoints.length} points, ${skipped} skipped).`, 'success');
