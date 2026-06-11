@@ -27,6 +27,7 @@ class TimelineControl {
         this._currentStep = 0;
         this._totalSteps = 0;
         this._steps = [];
+        this._stepActivity = null;
         this._destroyed = false;
 
         // Create DOM
@@ -63,6 +64,7 @@ class TimelineControl {
 
         // Store refs
         this._slider = el.querySelector('.timeline-slider');
+        this._sliderWrap = el.querySelector('.timeline-slider-wrap');
         this._startLabel = el.querySelector('.timeline-label-start');
         this._endLabel = el.querySelector('.timeline-label-end');
         this._ticksEl = el.querySelector('.timeline-ticks');
@@ -103,6 +105,8 @@ class TimelineControl {
                     opt.classList.add('active');
                     this._grouping = group;
                     this._rebuildSteps();
+                    // Refresh activity dots for the new grouping
+                    updateTimelineActivity();
                     // Fire the callback so map layers update with the new grouping
                     if (scrubCallback) {
                         const winStart = this._getWindowStart();
@@ -176,6 +180,7 @@ class TimelineControl {
         this._slider.max = String(this._totalSteps);
         this._slider.value = String(this._currentStep);
         this._renderTicks();
+        this._renderActivityDots();
         this._updateLabels();
     }
 
@@ -280,6 +285,42 @@ class TimelineControl {
         this._el.classList.remove('timeline-hidden');
     }
 
+    /**
+     * Store which time steps have data points and re-render the dots.
+     * @param {boolean[]} activity
+     */
+    setStepActivity(activity) {
+        this._stepActivity = activity;
+        this._renderActivityDots();
+    }
+
+    /** Render tiny dots on the slider for time steps that have data. */
+    _renderActivityDots() {
+        const existing = this._sliderWrap.querySelector('.timeline-activity-dots');
+        if (existing) existing.remove();
+
+        if (!this._stepActivity || !this._steps || this._steps.length < 2) return;
+
+        const container = document.createElement('div');
+        container.className = 'timeline-activity-dots';
+
+        const total = this._steps.length - 1;
+        for (let i = 0; i < this._stepActivity.length; i++) {
+            if (!this._stepActivity[i]) continue;
+
+            const dot = document.createElement('div');
+            dot.className = 'timeline-activity-dot';
+            // Account for the 16px slider thumb: the thumb center ranges
+            // from 8px to (100% - 8px), not 0% to 100%.
+            // ratio is unitless so it can multiply a length in calc().
+            const ratio = i / total;
+            dot.style.left = `calc(${ratio} * (100% - 16px) + 8px)`;
+            container.appendChild(dot);
+        }
+
+        this._sliderWrap.appendChild(container);
+    }
+
     destroy() {
         if (this._destroyed) return;
         this._destroyed = true;
@@ -352,6 +393,8 @@ export function unregisterTimelineLayer(layerId) {
 
     if (timelineLayers.length === 0) {
         destroyTimelineControl();
+    } else {
+        updateTimelineActivity();
     }
 }
 
@@ -370,4 +413,36 @@ export function getCurrentWindow() {
  */
 export function hasTimelineLayers() {
     return timelineLayers.length > 0;
+}
+
+/**
+ * Recompute which time steps have data points across all timeline layers
+ * and update the slider activity dots.
+ */
+export function updateTimelineActivity() {
+    if (!activeControl || timelineLayers.length === 0) return;
+
+    const steps = activeControl._steps;
+    if (!steps || steps.length === 0) return;
+
+    const grouping = activeControl._grouping;
+    const activity = new Array(steps.length).fill(false);
+
+    for (let i = 0; i < steps.length; i++) {
+        const winStart = steps[i];
+        const winEnd = getGroupEnd(winStart, grouping);
+
+        for (const layer of timelineLayers) {
+            if (!layer.coords) continue;
+            for (const pt of layer.coords) {
+                if (pt.parsedDate && pt.parsedDate >= winStart && pt.parsedDate <= winEnd) {
+                    activity[i] = true;
+                    break;
+                }
+            }
+            if (activity[i]) break;
+        }
+    }
+
+    activeControl.setStepActivity(activity);
 }

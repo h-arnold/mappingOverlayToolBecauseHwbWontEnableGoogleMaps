@@ -11,6 +11,7 @@ import {
     registerTimelineLayer,
     unregisterTimelineLayer,
     hasTimelineLayers,
+    updateTimelineActivity,
 } from './timeline.js';
 
 /* ------------------------------------------------------------------ */
@@ -562,11 +563,15 @@ export function initializeTimelineForLayer(meta) {
     if (meta.dateRange.min) {
         updateLayerTimeWindow(meta, meta.dateRange.min, meta.grouping || 'month');
     }
+
+    // Refresh activity dots on the slider
+    updateTimelineActivity();
 }
 
 /**
  * Update a layer to show only points within the specified time window.
  * Rebuilds the native Leaflet layer with filtered coordinates.
+ * Points outside the window are shown as dimmed/disabled markers.
  * @param {import('./types').LayerMeta} meta
  * @param {import('luxon').DateTime} windowStart
  * @param {string} grouping
@@ -577,26 +582,51 @@ export function updateLayerTimeWindow(meta, windowStart, grouping) {
     const windowEnd = getGroupEnd(windowStart, grouping);
     meta.currentWindowStart = windowStart;
 
-    // Filter coordinates that have parsedDate within [windowStart, windowEnd]
-    const filtered = meta.coords.filter((pt) => {
-        if (!pt.parsedDate) return false;
-        return pt.parsedDate >= windowStart && pt.parsedDate <= windowEnd;
-    });
+    // Separate coordinates into active (within window) and inactive (outside)
+    const active = [];
+    const inactive = [];
+    for (const pt of meta.coords) {
+        if (!pt.parsedDate) {
+            inactive.push(pt);
+        } else if (pt.parsedDate >= windowStart && pt.parsedDate <= windowEnd) {
+            active.push(pt);
+        } else {
+            inactive.push(pt);
+        }
+    }
 
-    meta.filteredCoords = filtered;
+    meta.filteredCoords = active;
 
     // Remove old native layer from map
     if (mapInstance.hasLayer(meta.nativeLayer)) {
         mapInstance.removeLayer(meta.nativeLayer);
     }
 
-    // Rebuild native layer with filtered coordinates
+    // Rebuild native layer — active points with normal styling,
+    // inactive points rendered as dimmed/disabled circles
     let newLayer;
 
     if (meta.type === 'pins') {
         const canvasRenderer = L.canvas({ padding: 0.2 });
         const group = L.layerGroup();
-        for (const pt of filtered) {
+
+        // Inactive (dimmed) points rendered first so active ones sit on top
+        for (const pt of inactive) {
+            const marker = L.circleMarker([pt.lat, pt.lng], {
+                renderer: canvasRenderer,
+                radius: 5,
+                fillColor: '#a8a29e',
+                color: '#d6d3d1',
+                weight: 1,
+                opacity: 0.35,
+                fillOpacity: 0.15,
+                interactive: false,
+            });
+            group.addLayer(marker);
+        }
+
+        // Active (in-window) points with full styling and popups
+        for (const pt of active) {
             const marker = L.circleMarker([pt.lat, pt.lng], {
                 renderer: canvasRenderer,
                 radius: 6,
@@ -619,7 +649,8 @@ export function updateLayerTimeWindow(meta, windowStart, grouping) {
         }
         newLayer = group;
     } else {
-        const heatCoords = filtered.map((p) => [p.lat, p.lng, 0.85]);
+        // For heatmaps, only show active points
+        const heatCoords = active.map((p) => [p.lat, p.lng, 0.85]);
         newLayer = L.heatLayer(heatCoords, {
             radius: meta.radius,
             blur: meta.blur,
