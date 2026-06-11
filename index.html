@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>GeoForge Map Studio</title>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="stylesheet" href="/src/style.css" />
+</head>
+<body class="bg-slate-950 text-slate-100 font-sans h-screen flex flex-col overflow-hidden">
+
+    <!-- Header Navigation -->
+    <header class="bg-slate-900 border-b border-slate-800 px-6 py-4 flex flex-wrap items-center justify-between gap-4 shrink-0 z-10 shadow-md">
+        <div class="flex items-center gap-3">
+            <div class="bg-indigo-600 p-2.5 rounded-xl text-white shadow-lg shadow-indigo-600/20">
+                <i data-lucide="map" class="w-6 h-6"></i>
+            </div>
+            <div>
+                <h1 class="text-lg font-bold tracking-tight text-white flex items-center gap-2">
+                    GeoForge Map Studio
+                    <span class="text-[10px] bg-indigo-500/10 text-indigo-400 px-2 py-0.5 rounded-full border border-indigo-500/20 font-semibold tracking-wider">PREVIEW</span>
+                </h1>
+                <p class="text-xs text-slate-400">100% Secure Client-Side Mapping Utility</p>
+            </div>
+        </div>
+
+        <div class="flex items-center gap-2.5">
+            <button id="btnLoadMock" class="flex items-center gap-2 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 hover:border-slate-600 px-4 py-2 rounded-xl text-sm font-semibold transition-all shadow-sm">
+                <i data-lucide="sparkles" class="w-4 h-4 text-amber-400"></i>
+                Load Mock Dataset
+            </button>
+            <button id="btnDownloadSample" class="flex items-center gap-2 bg-slate-800/50 hover:bg-slate-800 text-slate-400 hover:text-slate-200 border border-slate-800 hover:border-slate-700 px-4 py-2 rounded-xl text-sm font-semibold transition-all">
+                <i data-lucide="download" class="w-4 h-4"></i>
+                Sample CSV Template
+            </button>
+        </div>
+    </header>
+
+    <!-- Main Workspace -->
+    <main class="flex-1 flex flex-col md:flex-row min-h-0 w-full relative">
+
+        <!-- Left Control Sidebar -->
+        <aside class="w-full md:w-[420px] bg-slate-900 border-r border-slate-800 flex flex-col h-full shrink-0 z-10 shadow-2xl overflow-hidden">
+
+            <!-- CSV Drag & Drop Uploader -->
+            <div class="p-5 border-b border-slate-800/80 shrink-0 bg-slate-900/60">
+                <h2 class="text-xs font-bold uppercase tracking-wider text-slate-400 mb-3 flex items-center gap-2">
+                    <i data-lucide="file-up" class="w-4 h-4 text-indigo-400"></i> 1. Import Spatial Dataset
+                </h2>
+
+                <div id="dropzone" class="border-2 border-dashed border-slate-700 hover:border-indigo-500 bg-slate-950/40 hover:bg-slate-950/70 rounded-xl p-6 text-center cursor-pointer transition-all duration-300 group">
+                    <input type="file" id="csvFileInput" accept=".csv" class="hidden" />
+                    <div class="flex flex-col items-center gap-2 pointer-events-none">
+                        <div class="p-3 bg-slate-800 rounded-xl group-hover:scale-105 group-hover:bg-indigo-600/10 transition-all duration-300">
+                            <i data-lucide="upload" class="w-6 h-6 text-slate-400 group-hover:text-indigo-400"></i>
+                        </div>
+                        <p class="text-sm font-semibold text-slate-300">Drag &amp; drop CSV file or <span class="text-indigo-400 underline decoration-indigo-400/30">browse</span></p>
+                        <p class="text-[10px] text-slate-500">Requires records containing latitude and longitude coordinates</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Pre-add Layer Wizard -->
+            <div id="wizardPanel" class="hidden p-5 border-b border-slate-800 bg-indigo-950/20 shrink-0">
+                <div class="flex justify-between items-start mb-3.5">
+                    <h3 class="text-xs font-bold uppercase tracking-wider text-indigo-300 flex items-center gap-1.5">
+                        <i data-lucide="settings" class="w-4 h-4"></i> Coordinate Field Setup
+                    </h3>
+                    <button id="btnCancelWizard" class="text-slate-500 hover:text-slate-300 transition">
+                        <i data-lucide="x" class="w-4.5 h-4.5"></i>
+                    </button>
+                </div>
+
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-[11px] font-semibold text-slate-400 mb-1">Layer Label Name</label>
+                        <input type="text" id="wizardLayerName" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-indigo-500 transition" />
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-[11px] font-semibold text-slate-400 mb-1">Latitude Column</label>
+                            <select id="wizardLatCol" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-2 text-xs text-white focus:outline-none focus:border-indigo-500 transition"></select>
+                        </div>
+                        <div>
+                            <label class="block text-[11px] font-semibold text-slate-400 mb-1">Longitude Column</label>
+                            <select id="wizardLngCol" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-2 text-xs text-white focus:outline-none focus:border-indigo-500 transition"></select>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-[11px] font-semibold text-slate-400 mb-1">Overlay Method</label>
+                            <div class="flex bg-slate-950 p-1 rounded-lg border border-slate-800">
+                                <button type="button" id="btnTypePins" class="flex-1 py-1 rounded text-xs font-semibold text-center transition-all bg-indigo-600 text-white">Pins</button>
+                                <button type="button" id="btnTypeHeat" class="flex-1 py-1 rounded text-xs font-semibold text-center transition-all text-slate-400 hover:text-slate-200">Heatmap</button>
+                            </div>
+                        </div>
+                        <div>
+                            <label class="block text-[11px] font-semibold text-slate-400 mb-1">Layer Base Color</label>
+                            <div class="flex items-center gap-2 bg-slate-950 px-2.5 py-1.5 border border-slate-800 rounded-lg">
+                                <input type="color" id="wizardColor" value="#6366f1" class="w-7 h-6 bg-transparent cursor-pointer border-0 rounded" />
+                                <span id="wizardColorLabel" class="text-xs uppercase font-mono text-slate-400">#6366F1</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <button id="btnPlotLayer" class="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-semibold py-2.5 rounded-lg text-xs shadow-lg shadow-indigo-600/20 hover:shadow-indigo-600/30 transition-all flex items-center justify-center gap-2 uppercase tracking-wider">
+                        <i data-lucide="plus" class="w-4 h-4"></i> Plot Overlay Layer
+                    </button>
+                </div>
+            </div>
+
+            <!-- Active Layers Panel -->
+            <div class="flex-1 overflow-y-auto p-5 flex flex-col min-h-0">
+                <div class="flex justify-between items-center mb-4 shrink-0">
+                    <h2 class="text-xs font-bold uppercase tracking-wider text-slate-400 flex items-center gap-2">
+                        <i data-lucide="layers" class="w-4 h-4 text-emerald-400"></i> Active Overlays Directory
+                    </h2>
+                    <span id="layerCounter" class="text-xs font-mono bg-slate-950 text-slate-400 px-2.5 py-0.5 rounded-full border border-slate-800">0 Layers</span>
+                </div>
+
+                <!-- Empty State -->
+                <div id="layersEmptyState" class="flex-1 flex flex-col items-center justify-center text-center p-8 border-2 border-dashed border-slate-800/50 rounded-xl bg-slate-950/10">
+                    <div class="p-4 bg-slate-800/40 rounded-full text-slate-500 mb-3">
+                        <i data-lucide="map-pin" class="w-8 h-8"></i>
+                    </div>
+                    <p class="text-slate-300 font-semibold text-sm">No Active Map Overlays</p>
+                    <p class="text-slate-500 text-xs max-w-[250px] mt-1.5 leading-relaxed">Load our built-in mock dataset or drop your coordinates CSV to compile display layers.</p>
+                </div>
+
+                <!-- Layer list container -->
+                <div id="layersList" class="space-y-4 hidden"></div>
+            </div>
+
+            <!-- App Footer -->
+            <div class="p-4 border-t border-slate-800/80 bg-slate-950/80 shrink-0 text-center text-[11px] text-slate-500 flex items-center justify-between font-mono">
+                <span>Viewport: Web Canvas 2D</span>
+                <span class="flex items-center gap-1.5"><span class="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></span> Active Session</span>
+            </div>
+        </aside>
+
+        <!-- Right Map Screen -->
+        <div class="flex-1 h-full w-full bg-slate-950 relative z-0">
+            <div id="map"></div>
+        </div>
+
+        <!-- Toast Container -->
+        <div id="toastContainer" class="absolute bottom-6 right-6 z-[1000] flex flex-col gap-3 pointer-events-none"></div>
+
+    </main>
+
+    <script type="module" src="/src/main.js"></script>
+</body>
+</html>
