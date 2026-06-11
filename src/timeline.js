@@ -103,6 +103,11 @@ class TimelineControl {
                     opt.classList.add('active');
                     this._grouping = group;
                     this._rebuildSteps();
+                    // Fire the callback so map layers update with the new grouping
+                    if (scrubCallback) {
+                        const winStart = this._getWindowStart();
+                        scrubCallback(winStart, this._grouping);
+                    }
                     this._gearDropdown.classList.add('hidden');
                 }
             });
