@@ -34,3 +34,166 @@
     height: 100%;
     width: 100%;
 }
+
+/* ------------------------------------------------------------------ */
+/*  Tile Switcher Control (bottom-right)                               */
+/* ------------------------------------------------------------------ */
+
+.tile-switcher {
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+    position: relative;
+}
+
+.tile-switcher-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 34px;
+    height: 34px;
+    background: #fafaf9;
+    border: 1px solid #e7e5e4;
+    border-radius: 8px;
+    cursor: pointer;
+    color: #57534e;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    transition: background 0.15s, color 0.15s;
+}
+
+.tile-switcher-btn:hover {
+    background: #f5f5f4;
+    color: #292524;
+}
+
+.tile-switcher-btn.open {
+    background: #292524;
+    color: #fafaf9;
+    border-color: #292524;
+}
+
+.tile-switcher-panel {
+    position: absolute;
+    bottom: 42px;
+    right: 0;
+    background: #fafaf9;
+    border: 1px solid #e7e5e4;
+    border-radius: 10px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+    padding: 4px;
+    min-width: 170px;
+    z-index: 1000;
+}
+
+.tile-switcher-item {
+    display: block;
+    width: 100%;
+    text-align: left;
+    padding: 6px 10px;
+    font-size: 12px;
+    font-weight: 500;
+    color: #57534e;
+    background: transparent;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: background 0.12s, color 0.12s;
+    font-family: inherit;
+    white-space: nowrap;
+}
+
+.tile-switcher-item:hover {
+    background: #e7e5e4;
+    color: #292524;
+}
+
+.tile-switcher-item.active {
+    background: #292524;
+    color: #fafaf9;
+    font-weight: 600;
+}
+
+/* Featured items */
+.tile-switcher-item.ts-featured {
+    padding: 7px 10px;
+    font-size: 13px;
+}
+
+.tile-switcher-item.ts-featured:first-child {
+    margin-bottom: 1px;
+}
+
+.ts-star {
+    color: #eab308;
+    font-size: 14px;
+    margin-right: 4px;
+}
+
+.ts-building {
+    color: #6366f1;
+    font-size: 14px;
+    margin-right: 4px;
+}
+
+.ts-badge {
+    font-size: 9px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    background: #eab308;
+    color: #422006;
+    padding: 1px 5px;
+    border-radius: 4px;
+    margin-left: 4px;
+    vertical-align: middle;
+}
+
+.tile-switcher-item.ts-featured.active .ts-badge {
+    background: #fef08a;
+}
+
+/* Divider */
+.ts-divider {
+    height: 1px;
+    background: #e7e5e4;
+    margin: 4px 8px;
+}
+
+/* Accordion */
+.ts-accordion-btn {
+    display: block;
+    width: 100%;
+    text-align: left;
+    padding: 5px 10px;
+    font-size: 11px;
+    font-weight: 600;
+    color: #a8a29e;
+    background: transparent;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: background 0.12s, color 0.12s;
+    font-family: inherit;
+    letter-spacing: 0.3px;
+    text-transform: uppercase;
+}
+
+.ts-accordion-btn:hover {
+    color: #57534e;
+    background: #f5f5f4;
+}
+
+.ts-count {
+    font-weight: 500;
+    margin-left: 2px;
+    color: inherit;
+}
+
+.ts-accordion-body {
+    padding: 0 0 2px 0;
+}
+
+.ts-accordion-body .tile-switcher-item {
+    padding-left: 18px;
+    font-size: 11px;
+}

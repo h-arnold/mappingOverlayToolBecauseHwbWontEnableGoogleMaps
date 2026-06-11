@@ -16,6 +16,59 @@ export let mapInstance;
 export const layersRegistry = [];
 
 /* ------------------------------------------------------------------ */
+/*  Tile layer definitions & state                                     */
+/* ------------------------------------------------------------------ */
+
+/**
+ * @typedef {{ url: string, attribution: string, subdomains?: string, maxZoom?: number }} TileDef
+ */
+
+/** @type {Object<string, TileDef>} */
+const TILE_PROVIDERS = {
+    'Voyager': {
+        url: 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> &copy; <a href="https://carto.com/attributions">CARTO</a>',
+        subdomains: 'abcd',
+        maxZoom: 20,
+    },
+    'Positron': {
+        url: 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> &copy; <a href="https://carto.com/attributions">CARTO</a>',
+        subdomains: 'abcd',
+        maxZoom: 20,
+    },
+    'Dark Matter': {
+        url: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> &copy; <a href="https://carto.com/attributions">CARTO</a>',
+        subdomains: 'abcd',
+        maxZoom: 20,
+    },
+    'OpenTopoMap': {
+        url: 'https://tile.opentopomap.org/{z}/{x}/{y}.png',
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> contributors, <a href="https://opentopomap.org">OpenTopoMap</a>',
+        maxZoom: 17,
+    },
+    'OSM Standard': {
+        url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> contributors',
+        maxZoom: 19,
+    },
+    'Esri Street': {
+        url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}',
+        attribution: '&copy; Esri &mdash; Source: Esri, HERE, Garmin, USGS, Intermap',
+        maxZoom: 20,
+    },
+    'Esri Topo': {
+        url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}',
+        attribution: '&copy; Esri &mdash; Source: Esri, HERE, Garmin, USGS, Intermap',
+        maxZoom: 20,
+    },
+};
+
+/** @type {L.TileLayer} */
+let currentTileLayer;
+
+/* ------------------------------------------------------------------ */
 /*  Map initialisation                                                 */
 /* ------------------------------------------------------------------ */
 
@@ -26,15 +79,138 @@ export function initializeMainMap() {
         zoomControl: false,
     });
 
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
-        attribution:
-            '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>',
-        subdomains: 'abcd',
-        maxZoom: 20,
+    // Add default tile layer (OSM Standard — recommended)
+    const def = TILE_PROVIDERS['OSM Standard'];
+    currentTileLayer = L.tileLayer(def.url, {
+        attribution: def.attribution,
+        maxZoom: def.maxZoom,
     }).addTo(mapInstance);
 
     L.control.zoom({ position: 'topright' }).addTo(mapInstance);
+
+    // Add tile switcher control (bottom-right)
+    mapInstance.addControl(new TileSwitcherControl());
 }
+
+/* ------------------------------------------------------------------ */
+/*  Tile layer switcher control                                        */
+/* ------------------------------------------------------------------ */
+
+const TileSwitcherControl = L.Control.extend({
+    options: {
+        position: 'bottomright',
+    },
+
+    onAdd() {
+        const container = L.DomUtil.create('div', 'leaflet-control tile-switcher');
+
+        // Toggle button
+        const btn = L.DomUtil.create('button', 'tile-switcher-btn', container);
+        btn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>';
+        btn.title = 'Switch basemap';
+
+        // Dropdown panel
+        const panel = L.DomUtil.create('div', 'tile-switcher-panel', container);
+        panel.style.display = 'none';
+
+        // --- Featured section ---
+        const featured = [
+            { name: 'OSM Standard', html: '<span class="ts-star">&#9733;</span> OSM Standard <span class="ts-badge">recommended</span>' },
+            { name: 'Esri Street',  html: '<span class="ts-building">&#8962;</span> Esri Street' },
+        ];
+        for (const f of featured) {
+            const item = L.DomUtil.create('button', 'tile-switcher-item ts-featured', panel);
+            item.innerHTML = f.html;
+            item.dataset.name = f.name;
+            if (f.name === 'OSM Standard') item.classList.add('active');
+            item.addEventListener('click', () => this._switchTile(f.name, panel));
+        }
+
+        // Divider
+        L.DomUtil.create('div', 'ts-divider', panel);
+
+        // --- Accordion ---
+        const accordionBtn = L.DomUtil.create('button', 'ts-accordion-btn', panel);
+        accordionBtn.innerHTML = '&#9656; Other maps <span class="ts-count">5</span>';
+        accordionBtn.dataset.open = 'false';
+
+        const accordionBody = L.DomUtil.create('div', 'ts-accordion-body', panel);
+        accordionBody.style.display = 'none';
+
+        const otherNames = ['Voyager', 'Positron', 'Dark Matter', 'OpenTopoMap', 'Esri Topo'];
+        for (const name of otherNames) {
+            const item = L.DomUtil.create('button', 'tile-switcher-item', accordionBody);
+            item.textContent = name;
+            item.dataset.name = name;
+            item.addEventListener('click', () => this._switchTile(name, panel));
+        }
+
+        // Accordion toggle
+        accordionBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const isOpen = accordionBtn.dataset.open === 'true';
+            accordionBtn.dataset.open = String(!isOpen);
+            accordionBtn.innerHTML = isOpen
+                ? '&#9656; Other maps <span class="ts-count">5</span>'
+                : '&#9662; Other maps <span class="ts-count">5</span>';
+            accordionBody.style.display = isOpen ? 'none' : 'block';
+        });
+
+        // --- Toggle button ---
+        btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const isOpen = panel.style.display === 'block';
+            panel.style.display = isOpen ? 'none' : 'block';
+            btn.classList.toggle('open', !isOpen);
+        });
+
+        // Close panel when clicking outside
+        const onDocClick = (e) => {
+            if (!container.contains(e.target)) {
+                panel.style.display = 'none';
+                btn.classList.remove('open');
+            }
+        };
+        document.addEventListener('click', onDocClick);
+        this._onDocClick = onDocClick;
+
+        L.DomEvent.disableClickPropagation(container);
+        L.DomEvent.disableScrollPropagation(container);
+
+        return container;
+    },
+
+    onRemove() {
+        if (this._onDocClick) {
+            document.removeEventListener('click', this._onDocClick);
+        }
+    },
+
+    _switchTile(name, panel) {
+        const def = TILE_PROVIDERS[name];
+        if (!def) return;
+
+        if (currentTileLayer) {
+            mapInstance.removeLayer(currentTileLayer);
+        }
+
+        currentTileLayer = L.tileLayer(def.url, {
+            attribution: def.attribution,
+            maxZoom: def.maxZoom,
+            ...(def.subdomains ? { subdomains: def.subdomains } : {}),
+        }).addTo(mapInstance);
+
+        // Update active state across all items (featured + accordion)
+        panel.querySelectorAll('.tile-switcher-item').forEach((el) => {
+            el.classList.toggle('active', el.dataset.name === name);
+        });
+
+        // Close panel after selection
+        panel.style.display = 'none';
+        const btn = panel.parentElement?.querySelector('.tile-switcher-btn');
+        if (btn) btn.classList.remove('open');
+    },
+});
 
 /* ------------------------------------------------------------------ */
 /*  Layer management helpers                                           */
