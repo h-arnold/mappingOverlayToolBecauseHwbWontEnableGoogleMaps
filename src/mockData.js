@@ -31,12 +31,12 @@ export function loadSampleDataset() {
  */
 export function downloadSampleCSV() {
     const rows = [
-        ['latitude', 'longitude', 'node_tag', 'density_scale', 'status'],
-        ['51.5074', '-0.1278', 'London Sector Alpha', 'High', 'Active'],
-        ['51.4545', '-2.5879', 'Bristol Sector Beta', 'Medium', 'Pending'],
-        ['53.4808', '-2.2426', 'Manchester Sector Gamma', 'Low', 'Active'],
-        ['52.4862', '-1.8904', 'Birmingham Sector Delta', 'High', 'Inactive'],
-        ['55.9533', '-3.1883', 'Edinburgh Sector Epsilon', 'Critical', 'Active'],
+        ['latitude', 'longditude', 'date/time(optional)', 'optional_meta_data_1', 'optional_metadata_2'],
+        ['51.5074', '-0.1278', '2024-03-15 14:30', 'Sensor-A7', 'Firmware v2.1'],
+        ['51.4545', '-2.5879', '', 'Sensor-B2', 'Firmware v1.8'],
+        ['53.4808', '-2.2426', '2024-06-22 09:15', 'Sensor-C9', 'Firmware v3.0'],
+        ['52.4862', '-1.8904', '', 'Sensor-D4', ''],
+        ['55.9533', '-3.1883', '2024-09-01 18:45', 'Sensor-E1', 'Firmware v2.5'],
     ];
 
     const csv = rows.map((r) => r.join(',')).join('\n');

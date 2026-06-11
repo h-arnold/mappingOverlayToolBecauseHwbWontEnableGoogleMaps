@@ -570,8 +570,8 @@ export function initializeTimelineForLayer(meta) {
 
 /**
  * Update a layer to show only points within the specified time window.
- * Rebuilds the native Leaflet layer with filtered coordinates.
- * Points outside the window are shown as dimmed/disabled markers.
+ * Rebuilds the native Leaflet layer with only the active (in-window) points.
+ * Points without a parsed date are always treated as active.
  * @param {import('./types').LayerMeta} meta
  * @param {import('luxon').DateTime} windowStart
  * @param {string} grouping
@@ -582,17 +582,16 @@ export function updateLayerTimeWindow(meta, windowStart, grouping) {
     const windowEnd = getGroupEnd(windowStart, grouping);
     meta.currentWindowStart = windowStart;
 
-    // Separate coordinates into active (within window) and inactive (outside)
+    // Filter to only active points (in-window or undated)
     const active = [];
-    const inactive = [];
     for (const pt of meta.coords) {
         if (!pt.parsedDate) {
-            inactive.push(pt);
+            // Points without a parsed date are always visible
+            active.push(pt);
         } else if (pt.parsedDate >= windowStart && pt.parsedDate <= windowEnd) {
             active.push(pt);
-        } else {
-            inactive.push(pt);
         }
+        // Points outside the window are simply excluded — no dimmed rendering
     }
 
     meta.filteredCoords = active;
@@ -602,30 +601,13 @@ export function updateLayerTimeWindow(meta, windowStart, grouping) {
         mapInstance.removeLayer(meta.nativeLayer);
     }
 
-    // Rebuild native layer — active points with normal styling,
-    // inactive points rendered as dimmed/disabled circles
+    // Rebuild native layer with only active points
     let newLayer;
 
     if (meta.type === 'pins') {
         const canvasRenderer = L.canvas({ padding: 0.2 });
         const group = L.layerGroup();
 
-        // Inactive (dimmed) points rendered first so active ones sit on top
-        for (const pt of inactive) {
-            const marker = L.circleMarker([pt.lat, pt.lng], {
-                renderer: canvasRenderer,
-                radius: 5,
-                fillColor: '#a8a29e',
-                color: '#d6d3d1',
-                weight: 1,
-                opacity: 0.35,
-                fillOpacity: 0.15,
-                interactive: false,
-            });
-            group.addLayer(marker);
-        }
-
-        // Active (in-window) points with full styling and popups
         for (const pt of active) {
             const marker = L.circleMarker([pt.lat, pt.lng], {
                 renderer: canvasRenderer,
@@ -649,7 +631,6 @@ export function updateLayerTimeWindow(meta, windowStart, grouping) {
         }
         newLayer = group;
     } else {
-        // For heatmaps, only show active points
         const heatCoords = active.map((p) => [p.lat, p.lng, 0.85]);
         newLayer = L.heatLayer(heatCoords, {
             radius: meta.radius,

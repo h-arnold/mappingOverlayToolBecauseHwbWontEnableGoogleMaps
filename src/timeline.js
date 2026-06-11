@@ -84,6 +84,7 @@ class TimelineControl {
     _bindEvents() {
         this._slider.addEventListener('input', (e) => {
             this._currentStep = parseInt(e.target.value, 10);
+            this._snapToNearestActivity();
             this._updateLabels();
             if (scrubCallback) {
                 const winStart = this._getWindowStart();
@@ -319,6 +320,31 @@ class TimelineControl {
         }
 
         this._sliderWrap.appendChild(container);
+    }
+
+    /**
+     * Snap the current slider step to the nearest step that has data.
+     * If no step has activity data, the position is left unchanged.
+     */
+    _snapToNearestActivity() {
+        if (!this._stepActivity || this._stepActivity.length === 0) return;
+
+        let nearest = null;
+        let nearestDist = Infinity;
+        for (let i = 0; i < this._stepActivity.length; i++) {
+            if (this._stepActivity[i]) {
+                const dist = Math.abs(i - this._currentStep);
+                if (dist < nearestDist) {
+                    nearestDist = dist;
+                    nearest = i;
+                }
+            }
+        }
+
+        if (nearest !== null && nearest !== this._currentStep) {
+            this._currentStep = nearest;
+            this._slider.value = String(nearest);
+        }
     }
 
     destroy() {
