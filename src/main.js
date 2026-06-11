@@ -23,4 +23,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // 5. Render Lucide icons
     createIcons({ icons });
+
+    // 6. Register service worker for aggressive tile caching
+    if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('/sw.js').catch((err) => {
+            console.warn('Tile cache SW registration failed:', err);
+        });
+    }
 });
