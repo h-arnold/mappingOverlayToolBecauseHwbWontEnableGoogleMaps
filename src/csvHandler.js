@@ -233,9 +233,11 @@ export function compileAndAddLayer() {
     let nativeLayer;
 
     if (visualStyle === 'pins') {
+        const canvasRenderer = L.canvas({ padding: 0.2 });
         const group = L.layerGroup();
         for (const pt of mappedPoints) {
             const marker = L.circleMarker([pt.lat, pt.lng], {
+                renderer: canvasRenderer,
                 radius: 6,
                 fillColor: colorHex,
                 color: '#020617',

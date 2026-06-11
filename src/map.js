@@ -1,4 +1,5 @@
 import L from 'leaflet';
+import 'leaflet/dist/leaflet.css';
 import 'leaflet.heat';
 import { createIcons, icons } from 'lucide';
 import { constructHeatmapGradient } from './utils.js';
