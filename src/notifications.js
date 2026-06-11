@@ -1,4 +1,4 @@
-import { createIcons } from 'lucide';
+import { createIcons, icons } from 'lucide';
 
 /**
  * Show a toast notification at the bottom-right of the screen.
@@ -37,7 +37,7 @@ export function dispatchNotification(headline, bodyText, alertStyle = 'success')
     el.querySelector('.toast-dismiss')?.addEventListener('click', () => el.remove());
 
     toastBox.appendChild(el);
-    createIcons();
+    createIcons({ icons });
 
     // Auto-dismiss after 4.5 s
     setTimeout(() => {

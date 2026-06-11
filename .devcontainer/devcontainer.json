@@ -1,43 +1,18 @@
 {
     "name": "GeoForge Map Studio",
-    "build": {
-        "dockerfile": "Dockerfile",
-        "args": {
-            "VARIANT": "24-bookworm"
-        }
-    },
-    "features": {
-        "ghcr.io/devcontainers/features/github-cli:1": {
-            "version": "latest"
-        }
-    },
+    "image": "mcr.microsoft.com/devcontainers/javascript-node:24-bookworm",
 
-    // Configure Node.js environment
-    "containerEnv": {
-        "NODE_ENV": "development"
-    },
-
-    // Mount the workspace
-    "workspaceMount": "source=${localWorkspaceFolder},target=/workspace,type=bind",
-    "workspaceFolder": "/workspace",
-
-    // Install dependencies on container creation
+    // Install dependencies after container creation
     "postCreateCommand": "npm install",
-
-    // Additional commands after container is ready
-    "postStartCommand": "node --version && npm --version",
 
     // VS Code extensions useful for this project
     "customizations": {
         "vscode": {
             "extensions": [
-                "bradlc.vscode-tailwindcss",
                 "dbaeumer.vscode-eslint",
+                "bradlc.vscode-tailwindcss",
                 "esbenp.prettier-vscode",
-                "csstools.postcss",
-                "eamodio.gitlens",
-                "github.vscode-pull-request-github",
-                "yzhang.markdown-all-in-one"
+                "csstools.postcss"
             ],
             "settings": {
                 "files.associations": {
@@ -47,17 +22,12 @@
                 "editor.formatOnSave": true,
                 "editor.codeActionsOnSave": {
                     "source.fixAll.eslint": "explicit"
-                },
-                "tailwindCSS.experimental.classRegex": [],
-                "tailwindCSS.includeLanguages": {
-                    "html": "html",
-                    "javascript": "javascript"
                 }
             }
         }
     },
 
-    // Port forwarding for Vite dev server
+    // Forward Vite dev server port
     "forwardPorts": [5173],
     "portsAttributes": {
         "5173": {
@@ -66,6 +36,5 @@
         }
     },
 
-    // Remote user
     "remoteUser": "node"
 }

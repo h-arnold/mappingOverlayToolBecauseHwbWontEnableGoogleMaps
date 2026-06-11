@@ -1,6 +1,6 @@
 import L from 'leaflet';
 import 'leaflet.heat';
-import { createIcons } from 'lucide';
+import { createIcons, icons } from 'lucide';
 import { constructHeatmapGradient } from './utils.js';
 import { dispatchNotification } from './notifications.js';
 
@@ -279,9 +279,9 @@ export function renderActiveLayersUI() {
         container.appendChild(card);
     }
 
-    createIcons();
+    createIcons({ icons });
 
-    // Bind events (delegation would be cleaner but this is straightforward)
+    // Bind events
     container.querySelectorAll('.toggle-vis').forEach((btn) => {
         btn.addEventListener('click', () => toggleVisibilityState(btn.dataset.id));
     });

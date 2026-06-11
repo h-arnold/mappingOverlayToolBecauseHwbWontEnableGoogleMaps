@@ -1,4 +1,4 @@
-import { createIcons } from 'lucide';
+import { createIcons, icons } from 'lucide';
 import { initializeMainMap } from './map.js';
 import { setupFileUpload, setupWizardControls } from './csvHandler.js';
 import { loadSampleDataset, downloadSampleCSV } from './mockData.js';
@@ -22,5 +22,5 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('btnDownloadSample')?.addEventListener('click', downloadSampleCSV);
 
     // 5. Render Lucide icons
-    createIcons();
+    createIcons({ icons });
 });
