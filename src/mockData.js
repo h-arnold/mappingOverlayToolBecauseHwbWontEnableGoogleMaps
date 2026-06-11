@@ -44,7 +44,7 @@ export function downloadSampleCSV() {
 
     const a = document.createElement('a');
     a.setAttribute('href', href);
-    a.setAttribute('download', 'geoforge_coordinates_template.csv');
+    a.setAttribute('download', 'duckplot_coordinates_template.csv');
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);

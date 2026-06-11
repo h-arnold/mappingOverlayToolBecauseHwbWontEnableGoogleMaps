@@ -1,10 +1,8 @@
 {
-    "name": "GeoForge Map Studio",
+    "name": "DuckPlot",
     "image": "mcr.microsoft.com/devcontainers/javascript-node:24-bookworm",
-
     // Install dependencies after container creation
     "postCreateCommand": "npm install",
-
     // VS Code extensions useful for this project
     "customizations": {
         "vscode": {
@@ -29,15 +27,15 @@
             }
         }
     },
-
     // Forward Vite dev server port
-    "forwardPorts": [5173],
+    "forwardPorts": [
+        5173
+    ],
     "portsAttributes": {
         "5173": {
             "label": "Vite Dev Server",
             "onAutoForward": "notify"
         }
     },
-
     "remoteUser": "node"
 }
