@@ -1,8 +1,9 @@
 import Papa from 'papaparse';
 import L from 'leaflet';
 import 'leaflet.heat';
-import { layersRegistry, registerLayer, renderActiveLayersUI } from './map.js';
-import { constructHeatmapGradient, randomHexColor } from './utils.js';
+import { DateTime } from 'luxon';
+import { layersRegistry, registerLayer, renderActiveLayersUI, initializeTimelineForLayer } from './map.js';
+import { constructHeatmapGradient, getGroupStart, getGroupEnd } from './utils.js';
 import { dispatchNotification } from './notifications.js';
 
 /* ------------------------------------------------------------------ */
@@ -12,6 +13,7 @@ import { dispatchNotification } from './notifications.js';
 /** @type {Array<Record<string,string>>|null} */
 let pendingCsvDataset = null;
 let activeWizardType = 'pins';
+let activeTimelineGroup = 'month';
 
 /* ------------------------------------------------------------------ */
 /*  Drag-and-drop + file-picker setup                                  */
@@ -127,9 +129,30 @@ function launchConfigurationWizard(fileName, dataRows) {
     document.getElementById('wizardLayerName').value = fileName.replace(/\.[^/.]+$/, '');
     setWizardType('pins');
 
-    const color = randomHexColor();
-    document.getElementById('wizardColor').value = color;
-    document.getElementById('wizardColorLabel').textContent = color.toUpperCase();
+    // Populate date column dropdown
+    const dateSel = document.getElementById('wizardDateCol');
+    if (dateSel) {
+        dateSel.innerHTML = '<option value="">— Select column —</option>';
+        const dateRe = /(date|time|month|year|timestamp|period)/i;
+        let matchedDate = '';
+        for (const h of sampleKeys) {
+            const o = document.createElement('option');
+            o.value = h;
+            o.textContent = h;
+            if (dateRe.test(h.trim()) && !matchedDate) matchedDate = h;
+            if (h === matchedDate) o.selected = true;
+            dateSel.appendChild(o);
+        }
+    }
+
+    // Reset timeline checkbox
+    const chkTimeline = document.getElementById('chkTimeline');
+    if (chkTimeline) chkTimeline.checked = false;
+    const timelineOptions = document.getElementById('timelineOptions');
+    if (timelineOptions) timelineOptions.classList.add('hidden');
+
+    document.getElementById('wizardColor').value = '#ff0000';
+    document.getElementById('wizardColorLabel').textContent = '#FF0000';
 
     document.getElementById('wizardPanel').classList.remove('hidden');
     dispatchNotification('CSV Data Parsed', `Mapped ${dataRows.length} source records. Confirm columns to generate overlay.`, 'success');
@@ -178,6 +201,75 @@ export function setupWizardControls() {
         const label = document.getElementById('wizardColorLabel');
         if (label) label.textContent = e.target.value.toUpperCase();
     });
+
+    // Timeline checkbox toggle
+    document.getElementById('chkTimeline')?.addEventListener('change', (e) => {
+        const timelineOptions = document.getElementById('timelineOptions');
+        if (timelineOptions) {
+            timelineOptions.classList.toggle('hidden', !e.target.checked);
+        }
+    });
+
+    // Timeline group buttons
+    document.querySelectorAll('.timeline-group-btn').forEach((btn) => {
+        btn.addEventListener('click', () => {
+            document.querySelectorAll('.timeline-group-btn').forEach((b) => {
+                b.className =
+                    'timeline-group-btn flex-1 py-1.5 rounded text-[11px] font-semibold text-center transition-all text-stone-500 hover:text-stone-700';
+            });
+            btn.className =
+                'timeline-group-btn flex-1 py-1.5 rounded text-[11px] font-semibold text-center transition-all bg-indigo-600 text-white shadow-sm';
+            activeTimelineGroup = btn.dataset.group;
+        });
+    });
+}
+
+/* ------------------------------------------------------------------ */
+/*  Date parsing helpers                                               */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Try to parse a date string into a luxon DateTime using multiple strategies.
+ * @param {string} raw
+ * @returns {import('luxon').DateTime|null}
+ */
+function parseDateString(raw) {
+    if (!raw || typeof raw !== 'string') return null;
+    const trimmed = raw.trim();
+    if (!trimmed) return null;
+
+    // ISO 8601
+    let dt = DateTime.fromISO(trimmed);
+    if (dt.isValid) return dt;
+
+    // Common CSV date formats
+    const formats = [
+        'yyyy-MM-dd HH:mm:ss',
+        'yyyy-MM-dd HH:mm',
+        'yyyy-MM-dd',
+        'yyyy/MM/dd',
+        'dd/MM/yyyy HH:mm:ss',
+        'dd/MM/yyyy HH:mm',
+        'dd/MM/yyyy',
+        'MM/dd/yyyy HH:mm:ss',
+        'MM/dd/yyyy HH:mm',
+        'MM/dd/yyyy',
+        'yyyy-MM',           // e.g. 2022-01
+        'yyyy/MM',
+        'MMM yyyy',          // e.g. Jan 2022
+        'MMMM yyyy',         // e.g. January 2022
+        'dd-MMM-yyyy',       // e.g. 01-Jan-2022
+        'yyyyMMdd',
+        'HH:mm:ss',
+        'HH:mm',
+    ];
+
+    for (const fmt of formats) {
+        dt = DateTime.fromFormat(trimmed, fmt);
+        if (dt.isValid) return dt;
+    }
+
+    return null;
 }
 
 /* ------------------------------------------------------------------ */
@@ -190,11 +282,21 @@ export function compileAndAddLayer() {
     const name = (document.getElementById('wizardLayerName')?.value || '').trim() || 'Custom Dataset Overlay';
     const colLat = document.getElementById('wizardLatCol')?.value;
     const colLng = document.getElementById('wizardLngCol')?.value;
-    const colorHex = document.getElementById('wizardColor')?.value || '#6366f1';
+    const colorHex = document.getElementById('wizardColor')?.value || '#ff0000';
     const visualStyle = activeWizardType;
+
+    const chkTimeline = /** @type {HTMLInputElement} */ (document.getElementById('chkTimeline'));
+    const useTimeline = chkTimeline?.checked || false;
+    const dateColumn = useTimeline ? document.getElementById('wizardDateCol')?.value || null : null;
+    const grouping = useTimeline ? activeTimelineGroup : null;
 
     if (!colLat || !colLng) {
         dispatchNotification('Missing Columns', 'Please select both latitude and longitude columns.', 'error');
+        return;
+    }
+
+    if (useTimeline && !dateColumn) {
+        dispatchNotification('Missing Date Column', 'Please select a date/time column or disable the timeline.', 'error');
         return;
     }
 
@@ -209,6 +311,9 @@ export function compileAndAddLayer() {
 
     const mappedPoints = [];
     let skipped = 0;
+    let badDate = 0;
+    /** @type {import('luxon').DateTime[]} */
+    const allDates = [];
 
     for (const row of pendingCsvDataset) {
         const rawLat = row[colLat];
@@ -220,7 +325,17 @@ export function compileAndAddLayer() {
         const lat = parseFloat(String(rawLat).replace(/[^\d.-]/g, ''));
         const lng = parseFloat(String(rawLng).replace(/[^\d.-]/g, ''));
         if (!isNaN(lat) && !isNaN(lng) && lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180) {
-            mappedPoints.push({ lat, lng, attributes: row });
+            const pt = { lat, lng, attributes: row };
+            if (useTimeline && dateColumn && row[dateColumn] != null) {
+                const parsed = parseDateString(row[dateColumn]);
+                if (parsed && parsed.isValid) {
+                    pt.parsedDate = parsed;
+                    allDates.push(parsed);
+                } else {
+                    badDate++;
+                }
+            }
+            mappedPoints.push(pt);
         } else {
             skipped++;
         }
@@ -229,6 +344,30 @@ export function compileAndAddLayer() {
     if (mappedPoints.length === 0) {
         dispatchNotification('No Valid Points', 'No valid geographic coordinates found in selection.', 'error');
         return;
+    }
+
+    if (useTimeline && allDates.length === 0) {
+        dispatchNotification(
+            'No Parseable Dates',
+            'Could not parse any dates from the selected column. Please check the format or disable timeline.',
+            'error'
+        );
+        return;
+    }
+
+    if (useTimeline && badDate > 0) {
+        dispatchNotification(
+            'Date Parsing Warning',
+            `${badDate} row(s) had unparseable dates and were excluded from timeline filtering.`,
+            'info'
+        );
+    }
+
+    // Compute date range from parsed dates
+    let dateRange = null;
+    if (useTimeline && allDates.length > 0) {
+        allDates.sort((a, b) => a.toMillis() - b.toMillis());
+        dateRange = { min: allDates[0], max: allDates[allDates.length - 1] };
     }
 
     let nativeLayer;
@@ -264,14 +403,31 @@ export function compileAndAddLayer() {
             radius: 20,
             blur: 15,
             maxZoom: 15,
+            minOpacity: 0.67,
             gradient: constructHeatmapGradient(colorHex),
         });
     }
 
     const registered = registerLayer(name, visualStyle, colorHex, mappedPoints, nativeLayer);
-    if (!registered) return; // duplicate was caught by registerLayer's own guard
+    if (!registered) return;
+
+    // Set timeline metadata on the registered layer
+    if (useTimeline && dateRange) {
+        registered.dateColumn = dateColumn;
+        registered.grouping = grouping;
+        registered.dateRange = dateRange;
+        // Store parsed dates on each point
+        for (let i = 0; i < registered.coords.length; i++) {
+            if (mappedPoints[i]?.parsedDate) {
+                registered.coords[i].parsedDate = mappedPoints[i].parsedDate;
+            }
+        }
+        // Initialize the timeline control
+        initializeTimelineForLayer(registered);
+    }
 
     cancelWizard();
     renderActiveLayersUI();
-    dispatchNotification('Overlay Plotted', `"${name}" loaded (${mappedPoints.length} points, ${skipped} skipped).`, 'success');
+    const extra = useTimeline ? `, ${allDates.length} dated` : '';
+    dispatchNotification('Overlay Plotted', `"${name}" loaded (${mappedPoints.length} points${extra}, ${skipped} skipped).`, 'success');
 }

@@ -2,8 +2,16 @@ import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import 'leaflet.heat';
 import { createIcons, icons } from 'lucide';
-import { constructHeatmapGradient } from './utils.js';
+import { DateTime } from 'luxon';
+import { constructHeatmapGradient, getGroupStart, getGroupEnd } from './utils.js';
 import { dispatchNotification } from './notifications.js';
+import {
+    createTimelineControl,
+    destroyTimelineControl,
+    registerTimelineLayer,
+    unregisterTimelineLayer,
+    hasTimelineLayers,
+} from './timeline.js';
 
 /* ------------------------------------------------------------------ */
 /*  State                                                             */
@@ -116,7 +124,7 @@ const TileSwitcherControl = L.Control.extend({
         // --- Featured section ---
         const featured = [
             { name: 'OSM Standard', html: '<span class="ts-star">&#9733;</span> OSM Standard <span class="ts-badge">recommended</span>' },
-            { name: 'Esri Street',  html: '<span class="ts-building">&#8962;</span> Esri Street' },
+            { name: 'Esri Street', html: '<span class="ts-building">&#8962;</span> Esri Street' },
         ];
         for (const f of featured) {
             const item = L.DomUtil.create('button', 'tile-switcher-item ts-featured', panel);
@@ -223,6 +231,7 @@ const TileSwitcherControl = L.Control.extend({
  * @param {string}            color
  * @param {Array<{lat:number,lng:number,attributes:Record<string,string>}>} coords
  * @param {L.Layer}           nativeLayer
+ * @returns {import('./types').LayerMeta}
  */
 export function registerLayer(name, type, color, coords, nativeLayer) {
     // Defence-in-depth: guard against duplicate names
@@ -233,6 +242,7 @@ export function registerLayer(name, type, color, coords, nativeLayer) {
 
     const id = 'overlay_layer_' + crypto.randomUUID();
 
+    /** @type {import('./types').LayerMeta} */
     const meta = {
         id,
         name,
@@ -241,9 +251,14 @@ export function registerLayer(name, type, color, coords, nativeLayer) {
         coords,
         nativeLayer,
         visible: true,
-        opacity: 0.8,
+        opacity: 1.0,
         radius: 20,
         blur: 15,
+        dateColumn: null,
+        grouping: null,
+        dateRange: null,
+        currentWindowStart: null,
+        filteredCoords: null,
     };
 
     layersRegistry.push(meta);
@@ -301,6 +316,11 @@ export function toggleVisibilityState(id) {
 export function dismissLayerFromRegistry(id) {
     const layer = findLayer(id);
     if (!layer) return;
+
+    // Clean up timeline if this layer had it
+    if (layer.dateColumn) {
+        unregisterTimelineLayer(layer.id);
+    }
 
     mapInstance.removeLayer(layer.nativeLayer);
     layersRegistry.splice(layersRegistry.indexOf(layer), 1);
@@ -429,7 +449,7 @@ export function renderActiveLayersUI() {
                         </div>
                         <span class="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full ${isPin ? 'bg-indigo-100 text-indigo-600 border border-indigo-200' : 'bg-rose-100 text-rose-600 border border-rose-200'} mt-1 inline-block">
                             ${isPin ? 'Pin Overlay' : 'Heatmap Layer'} &bull; ${layer.coords.length} points
-                        </span>
+                            ${layer.dateColumn ? `<span class="ml-1 inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700 border border-amber-200 text-[8px] font-bold"><i data-lucide="clock" class="w-2.5 h-2.5"></i> Timeline</span>` : ''}
                     </div>
                 </div>
                 <button class="p-1.5 rounded-lg text-stone-400 hover:text-rose-500 hover:bg-rose-100 transition shrink-0 delete-layer" data-id="${layer.id}" title="Dismiss Layer">
@@ -508,4 +528,109 @@ export function renderActiveLayersUI() {
     container.querySelectorAll('.blur-slider').forEach((inp) => {
         inp.addEventListener('input', () => adjustHeatmapBlur(inp.dataset.id, inp.value));
     });
+}
+
+/* ------------------------------------------------------------------ */
+/*  Timeline Integration                                               */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Initialize the timeline for a layer that has time-series data.
+ * @param {import('./types').LayerMeta} meta
+ */
+export function initializeTimelineForLayer(meta) {
+    if (!meta.dateRange) return;
+
+    registerTimelineLayer(meta);
+
+    createTimelineControl(
+        mapInstance.getContainer(),
+        meta.dateRange.min,
+        meta.dateRange.max,
+        meta.grouping || 'month',
+        (windowStart, grouping) => {
+            // Apply the time window to ALL timeline layers
+            for (const layer of layersRegistry) {
+                if (layer.dateColumn) {
+                    updateLayerTimeWindow(layer, windowStart, grouping);
+                }
+            }
+        }
+    );
+
+    // Apply initial window
+    if (meta.dateRange.min) {
+        updateLayerTimeWindow(meta, meta.dateRange.min, meta.grouping || 'month');
+    }
+}
+
+/**
+ * Update a layer to show only points within the specified time window.
+ * Rebuilds the native Leaflet layer with filtered coordinates.
+ * @param {import('./types').LayerMeta} meta
+ * @param {import('luxon').DateTime} windowStart
+ * @param {string} grouping
+ */
+export function updateLayerTimeWindow(meta, windowStart, grouping) {
+    if (!meta.coords || meta.coords.length === 0) return;
+
+    const windowEnd = getGroupEnd(windowStart, grouping);
+    meta.currentWindowStart = windowStart;
+
+    // Filter coordinates that have parsedDate within [windowStart, windowEnd]
+    const filtered = meta.coords.filter((pt) => {
+        if (!pt.parsedDate) return false;
+        return pt.parsedDate >= windowStart && pt.parsedDate <= windowEnd;
+    });
+
+    meta.filteredCoords = filtered;
+
+    // Remove old native layer from map
+    if (mapInstance.hasLayer(meta.nativeLayer)) {
+        mapInstance.removeLayer(meta.nativeLayer);
+    }
+
+    // Rebuild native layer with filtered coordinates
+    let newLayer;
+
+    if (meta.type === 'pins') {
+        const canvasRenderer = L.canvas({ padding: 0.2 });
+        const group = L.layerGroup();
+        for (const pt of filtered) {
+            const marker = L.circleMarker([pt.lat, pt.lng], {
+                renderer: canvasRenderer,
+                radius: 6,
+                fillColor: meta.color,
+                color: '#44403c',
+                weight: 1.5,
+                opacity: 0.9,
+                fillOpacity: meta.opacity,
+            });
+
+            let html = `<div class="p-2 space-y-1 max-h-[180px] overflow-y-auto font-sans text-xs">`;
+            html += `<div class="font-bold border-b border-stone-200 pb-1.5 mb-2 flex items-center gap-1.5 text-stone-600"><i data-lucide="info" class="w-3.5 h-3.5 text-indigo-500"></i> Entity Attributes</div>`;
+            for (const [k, v] of Object.entries(pt.attributes)) {
+                html += `<div class="flex flex-col gap-0.5"><span class="text-stone-400 font-semibold uppercase text-[9px] tracking-wider">${k}</span><span class="text-stone-700 font-mono select-all">${v}</span></div>`;
+            }
+            html += `</div>`;
+
+            marker.bindPopup(html, { maxWidth: 280 });
+            group.addLayer(marker);
+        }
+        newLayer = group;
+    } else {
+        const heatCoords = filtered.map((p) => [p.lat, p.lng, 0.85]);
+        newLayer = L.heatLayer(heatCoords, {
+            radius: meta.radius,
+            blur: meta.blur,
+            maxZoom: 15,
+            gradient: constructHeatmapGradient(meta.color),
+        });
+    }
+
+    meta.nativeLayer = newLayer;
+
+    if (meta.visible) {
+        newLayer.addTo(mapInstance);
+    }
 }

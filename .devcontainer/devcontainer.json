@@ -12,7 +12,8 @@
                 "dbaeumer.vscode-eslint",
                 "bradlc.vscode-tailwindcss",
                 "esbenp.prettier-vscode",
-                "csstools.postcss"
+                "csstools.postcss",
+                "Vizards.deepseek-v4-for-copilot"
             ],
             "settings": {
                 "files.associations": {

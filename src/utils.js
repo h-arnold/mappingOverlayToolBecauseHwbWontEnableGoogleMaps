@@ -33,3 +33,37 @@ export function randomHexColor() {
     const colors = ['#6366f1', '#10b981', '#f43f5e', '#f59e0b', '#ec4899', '#06b6d4', '#8b5cf6'];
     return colors[Math.floor(Math.random() * colors.length)];
 }
+
+/**
+ * Get the start of a grouping interval for a DateTime.
+ * @param {import('luxon').DateTime} dt
+ * @param {string} grouping
+ * @returns {import('luxon').DateTime}
+ */
+export function getGroupStart(dt, grouping) {
+    switch (grouping) {
+        case 'hour': return dt.startOf('hour');
+        case 'day': return dt.startOf('day');
+        case 'week': return dt.startOf('week');
+        case 'month': return dt.startOf('month');
+        case 'year': return dt.startOf('year');
+        default: return dt.startOf('month');
+    }
+}
+
+/**
+ * Get the end of a grouping interval for a DateTime.
+ * @param {import('luxon').DateTime} dt
+ * @param {string} grouping
+ * @returns {import('luxon').DateTime}
+ */
+export function getGroupEnd(dt, grouping) {
+    switch (grouping) {
+        case 'hour': return dt.endOf('hour');
+        case 'day': return dt.endOf('day');
+        case 'week': return dt.endOf('week');
+        case 'month': return dt.endOf('month');
+        case 'year': return dt.endOf('year');
+        default: return dt.endOf('month');
+    }
+}
